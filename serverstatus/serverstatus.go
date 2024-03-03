@@ -155,28 +155,35 @@ func sendEmbeddedMessage(roomID string, color int, title, description string) {
 func InteractionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
     // A user is calling us with our status command
     if i.ApplicationCommandData().Name == "server-status" {
-        embeds := []*discordgo.MessageEmbed {}
+        online := ""
+        offline := ""
 
         for _, server := range config.Config.Servers {
             if server.Online {
-                embeds = append(embeds, &discordgo.MessageEmbed {
-                    Color: green,
-                    Title: server.Name,
-                    Description: "Online!\nUptime: "+fmtDuration(time.Since(server.OnlineTimestamp)),
-                })
+                online = online + server.Name + "  :  " + fmtDuration(time.Since(server.OnlineTimestamp)) + "\n"
             } else {
-                embeds = append(embeds, &discordgo.MessageEmbed {
-                    Color: red,
-                    Title: server.Name,
-                    Description: "Offline!\nDowntime: "+fmtDuration(time.Since(server.OfflineTimestamp)),
-                })
+                offline = offline + server.Name + "  :  " + fmtDuration(time.Since(server.OfflineTimestamp)) + "\n"
             }
         }
 
+        // Only one message can be an interaction response. Messages can only contain up to 10 embeds.
+        // Our message will therefore instead be two embeds (online and offline), each with a list of servers in text.
+        // Embed descriptions can be ~4096 characters, so no limits should get hit with this.
         s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
             Type: discordgo.InteractionResponseChannelMessageWithSource,
             Data: &discordgo.InteractionResponseData {
-                Embeds: embeds,
+                Embeds: []*discordgo.MessageEmbed {
+                    {
+                        Title: ":white_check_mark: Online",
+                        Color: green,
+                        Description: online,
+                    },
+                    {
+                        Title: ":x: Offline",
+                        Color: red,
+                        Description: offline,
+                    },
+                },
             },
         })
     }
