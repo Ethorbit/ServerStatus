@@ -21,18 +21,36 @@ const (
 	blue  = 0x42adf4
 )
 
-// Start - start port scanner and bot listeners
+// Start - add command, start port scanner and bot listeners
 func Start() {
-	//set each server status as online to start
+    //add command
+    _, err := bot.Session.ApplicationCommandCreate(bot.Session.State.User.ID, "", &discordgo.ApplicationCommand {
+        Name: "server-status",
+        Description: "Get the status of the servers.",
+    })
+
+    if err != nil {
+        log.Panicf("Cannot create status command '%v'", err)
+    }
+
+    //set each server status as online to start
 	for i := range config.Config.Servers {
 		config.Config.Servers[i].Online = true
 		config.Config.Servers[i].OnlineTimestamp = time.Now()
 		config.Config.Servers[i].OfflineTimestamp = time.Now()
 	}
 
-	err := bot.Session.UpdateStatus(0, config.Config.GameStatus)
+	err = bot.Session.UpdateStatusComplex(discordgo.UpdateStatusData { 
+        Status: "online", 
+        Activities: []*discordgo.Activity {
+            &discordgo.Activity {
+                Type: discordgo.ActivityTypeGame,
+                Name: config.Config.GameStatus,
+            },
+        },
+    })
 
-	sendMessageToRooms(blue, "Server Status", fmt.Sprintf("Bot started! Type %sServerStatus to see the status of your servers :smiley:", config.Config.BotPrefix), false)
+	sendMessageToRooms(blue, "Server Status", "Bot started! Type /server-status to see the status of your servers :smiley:", false)
 
 	if err != nil {
 		log.Println(err)
@@ -132,24 +150,36 @@ func sendEmbeddedMessage(roomID string, color int, title, description string) {
 	bot.Session.ChannelMessageSendEmbed(roomID, embed)
 }
 
-// MessageHandler will be called every time a new
-// message is created on any channel that the autenticated bot has access to.
-func MessageHandler(s *discordgo.Session, m *discordgo.MessageCreate) {
+// InteractionHandler will be called every time an interaction from a user occurs
+// Command interaction handling requires bot command scope
+func InteractionHandler(s *discordgo.Session, i *discordgo.InteractionCreate) {
+    // A user is calling us with our status command
+    if i.ApplicationCommandData().Name == "server-status" {
+        embeds := []*discordgo.MessageEmbed {}
 
-	// Ignore all messages created by the bot itself
-	if m.Author.ID == bot.BotID {
-		return
-	}
+        for _, server := range config.Config.Servers {
+            if server.Online {
+                embeds = append(embeds, &discordgo.MessageEmbed {
+                    Color: green,
+                    Title: server.Name,
+                    Description: "Online!\nUptime: "+fmtDuration(time.Since(server.OnlineTimestamp)),
+                })
+            } else {
+                embeds = append(embeds, &discordgo.MessageEmbed {
+                    Color: red,
+                    Title: server.Name,
+                    Description: "Offline!\nDowntime: "+fmtDuration(time.Since(server.OfflineTimestamp)),
+                })
+            }
+        }
 
-	if m.Content == config.Config.BotPrefix+"ServerStatus" {
-		for _, server := range config.Config.Servers {
-			if server.Online {
-				sendEmbeddedMessage(m.ChannelID, green, server.Name, "Online!\nUptime: "+fmtDuration(time.Since(server.OnlineTimestamp)))
-			} else {
-				sendEmbeddedMessage(m.ChannelID, red, server.Name, "Offline!\nDowntime: "+fmtDuration(time.Since(server.OfflineTimestamp)))
-			}
-		}
-	}
+        s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse {
+            Type: discordgo.InteractionResponseChannelMessageWithSource,
+            Data: &discordgo.InteractionResponseData {
+                Embeds: embeds,
+            },
+        })
+    }
 }
 
 func fmtDuration(d time.Duration) string {
