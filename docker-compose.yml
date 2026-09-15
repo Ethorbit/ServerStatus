@@ -4,15 +4,24 @@ services:
   server-status:
     build:
       context: .
+      target: app
       args:
         UID: 1000
         GID: 1000
     volumes:
     - ./config.json:/server-status/config.json
   builder:
-    image: golang:1.22-alpine3.19
+    build:
+      context: .
+      target: builder
     profiles: ["build"]
     working_dir: /build
     volumes:
     - .:/build
-    command: sh -c "apk add --no-cache git alpine-sdk && git config --global --add safe.directory /build && go get && make linux"
+    - go-mod-cache:/go/pkg/mod
+    - go-build-cache:/root/.cache/go-build
+    command: sh -c "git config --global --add safe.directory /build && go get && make linux && chown -R 1000:1000 /build/dist"
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
