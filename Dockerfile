@@ -12,5 +12,9 @@ RUN adduser -D -u ${UID} -G "${GNAME}" "${UNAME}" &&\
 USER ${UNAME}
 ENTRYPOINT ./ServerStatus-linux
 
-FROM golang:alpine3.24 AS builder
+FROM golang:alpine3.24 AS build
 RUN apk add --no-cache git alpine-sdk
+
+FROM golang:alpine3.24 AS scan
+RUN apk add --no-cache git
+RUN go install golang.org/x/vuln/cmd/govulncheck@latest

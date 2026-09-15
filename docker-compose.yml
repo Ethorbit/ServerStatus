@@ -1,7 +1,5 @@
-version: "3"
-
 services:
-  server-status:
+  app:
     build:
       context: .
       target: app
@@ -13,7 +11,7 @@ services:
   builder:
     build:
       context: .
-      target: builder
+      target: build
     profiles: ["build"]
     working_dir: /build
     volumes:
@@ -21,6 +19,16 @@ services:
     - go-mod-cache:/go/pkg/mod
     - go-build-cache:/root/.cache/go-build
     command: sh -c "git config --global --add safe.directory /build && go get && make linux && chown -R 1000:1000 /build/dist"
+  scanner:
+    build:
+      context: .
+      target: scan
+    profiles: ["scan"]
+    working_dir: /build
+    volumes:
+    - .:/build
+    - go-mod-cache:/go/pkg/mod
+    command: sh -c "git config --global --add safe.directory /build && go get && govulncheck -show verbose ./..."
 
 volumes:
   go-mod-cache:
