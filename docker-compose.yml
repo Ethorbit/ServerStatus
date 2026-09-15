@@ -2,10 +2,17 @@ version: "3"
 
 services:
   server-status:
-    image: ethorbit/discord-server-status:latest
     build:
+      context: .
       args:
         UID: 1000
         GID: 1000
     volumes:
     - ./config.json:/server-status/config.json
+  builder:
+    image: golang:1.22-alpine3.19
+    profiles: ["build"]
+    working_dir: /build
+    volumes:
+    - .:/build
+    command: sh -c "apk add --no-cache git alpine-sdk && git config --global --add safe.directory /build && go get && make linux"
